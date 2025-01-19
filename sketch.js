@@ -5,41 +5,38 @@ let autoVolumeBalance = false;
 let showHelp = true;
 let buttonX, buttonY, buttonWidth, buttonHeight;
 let soundFiles = {};
-
-// DOMが読み込まれた後に実行
-document.addEventListener('DOMContentLoaded', function() {
-    // スタートボタンのイベントリスナー
-    document.getElementById('startButton').addEventListener('click', function() {
-        // オーディオコンテキストの開始
-        userStartAudio();
-        
-        // 各音源の再生開始
-        sources.forEach(source => {
-            if (soundFiles[source.soundName]) {
-                soundFiles[source.soundName].loop();
-                soundFiles[source.soundName].setVolume(0);
-            }
-        });
-        
-        // スタートボタンを非表示
-        this.classList.add('hidden');
-    });
-});
+let loadedSounds = 0;
+let totalSounds = 10;
 
 function preload() {
     // 音声ファイルのプリロード
     soundFiles = {
-        'さざ波': loadSound('assets/sazanami.mp3'),
-        'ツクツクボウシ': loadSound('assets/tsukutsukuboushi.mp3'),
-        'ヒグラシ': loadSound('assets/higurashi.mp3'),
-        '雨音': loadSound('assets/rain.mp3'),
-        '川の音1': loadSound('assets/river1.mp3'),
-        '川の音2': loadSound('assets/river2.mp3'),
-        '鳥のさえずり': loadSound('assets/birds.mp3'),
-        '焚き火': loadSound('assets/fire.mp3'),
-        '川の音3': loadSound('assets/river3.mp3'),
-        '川の音4': loadSound('assets/river4.mp3')
+        'さざ波': loadSound('./assets/sazanami.mp3', soundLoaded, loadError),
+        'ツクツクボウシ': loadSound('./assets/tsukutsukuboushi.mp3', soundLoaded, loadError),
+        'ヒグラシ': loadSound('./assets/higurashi.mp3', soundLoaded, loadError),
+        '雨音': loadSound('./assets/rain.mp3', soundLoaded, loadError),
+        '川の音1': loadSound('./assets/river1.mp3', soundLoaded, loadError),
+        '川の音2': loadSound('./assets/river2.mp3', soundLoaded, loadError),
+        '鳥のさえずり': loadSound('./assets/birds.mp3', soundLoaded, loadError),
+        '焚き火': loadSound('./assets/fire.mp3', soundLoaded, loadError),
+        '川の音3': loadSound('./assets/river3.mp3', soundLoaded, loadError),
+        '川の音4': loadSound('./assets/river4.mp3', soundLoaded, loadError)
     };
+}
+
+function soundLoaded() {
+    loadedSounds++;
+    document.getElementById('loading').innerText = 
+        `Loading sounds... ${loadedSounds}/${totalSounds}`;
+    
+    if (loadedSounds === totalSounds) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('startButton').style.display = 'block';
+    }
+}
+
+function loadError(err) {
+    console.error('Sound loading error:', err);
 }
 
 function setup() {
@@ -47,9 +44,7 @@ function setup() {
     let canvas = createCanvas(1200, 800);
     canvas.parent('sketch-container');
     
-    // フレームレートを設定
     frameRate(60);
-    
     textSize(15);
     
     // 初期音源配置
@@ -288,27 +283,55 @@ class AudioSource {
     drawSoundSelector() {
         const selectorWidth = 200;
         const selectorHeight = 40;
+        const outerRadius = 400;
+        const lineLength = 50;
         
-        let startX, startY;
-        switch(this.index) {
-            case 0: startX = 0; startY = 0; break;
-            case 1: startX = width - selectorWidth; startY = 0; break;
-            case 2: startX = 0; startY = height - selectorHeight; break;
-            case 3: startX = width - selectorWidth; startY = height - selectorHeight; break;
-            default: return;
-        }
+        // 各音源
+        // drawSoundSelector続き
+        const angles = [30, 150, 210, 330];
+        const angle = radians(angles[this.index]);
         
         push();
         resetMatrix();
+        translate(width/2, height/2);
+        
+        // セレクターの位置を計算
+        const anchorX = cos(angle) * (outerRadius + lineLength/2);
+        const anchorY = sin(angle) * (outerRadius + lineLength/2);
+        
+        // セレクターを角度に合わせて回転
+        push();
+        translate(anchorX, anchorY);
+        rotate(angle);
+        
+        // セレクターの背景を描画
         fill(40, 40, 40, 240);
         stroke(this.sourceColor);
         strokeWeight(2);
-        rect(startX, startY, selectorWidth, selectorHeight, 10);
+        rect(-selectorWidth/2, -selectorHeight/2, selectorWidth, selectorHeight, 10);
         
+        // セレクターのテキストを描画
         fill(255);
+        noStroke();
         textAlign(CENTER, CENTER);
         textSize(14);
-        text(this.soundName, startX + selectorWidth/2, startY + selectorHeight/2);
+        // テキストを回転を考慮して描画
+        push();
+        if (angle > PI/2 && angle < 3*PI/2) {
+            rotate(PI);
+            text(this.soundName, 0, 0);
+        } else {
+            text(this.soundName, 0, 0);
+        }
+        pop();
+        pop();
+        
+        // 円からセレクターまでの接続線を描画
+        stroke(this.sourceColor);
+        strokeWeight(1);
+        const circleX = cos(angle) * outerRadius;
+        const circleY = sin(angle) * outerRadius;
+        line(circleX, circleY, anchorX, anchorY);
         
         pop();
     }
@@ -336,6 +359,30 @@ class AudioSource {
         soundFiles[this.soundName].pan(pan);
     }
 
+    checkSoundSelection(mx, my) {
+        const selectorWidth = 200;
+        const selectorHeight = 40;
+        const outerRadius = 400;
+        const lineLength = 50;
+        const angles = [30, 150, 210, 330];
+        const angle = radians(angles[this.index]);
+        
+        // セレクターの中心位置を計算
+        const anchorX = cos(angle) * (outerRadius + lineLength/2);
+        const anchorY = sin(angle) * (outerRadius + lineLength/2);
+        
+        // クリック位置を回転させた座標系で計算
+        const rotatedX = (mx * cos(-angle)) - (my * sin(-angle));
+        const rotatedY = (mx * sin(-angle)) + (my * cos(-angle));
+        
+        // セレクターの中心を基準とした相対座標に変換
+        const relX = rotatedX - anchorX * cos(-angle) + anchorY * sin(-angle);
+        const relY = rotatedY - anchorX * sin(-angle) - anchorY * cos(-angle);
+        
+        // セレクターの範囲内かチェック
+        return (abs(relX) < selectorWidth/2 && abs(relY) < selectorHeight/2);
+    }
+
     cycleThroughSounds() {
         const availableSounds = Object.keys(soundFiles);
         const currentIndex = availableSounds.indexOf(this.soundName);
@@ -356,24 +403,38 @@ class AudioSource {
             }
         }
     }
-
-    checkSoundSelection(mx, my) {
-        const selectorWidth = 200;
-        const selectorHeight = 40;
-        
-        let startX, startY;
-        switch(this.index) {
-            case 0: startX = -width/2; startY = -height/2; break;
-            case 1: startX = width/2 - selectorWidth; startY = -height/2; break;
-            case 2: startX = -width/2; startY = height/2 - selectorHeight; break;
-            case 3: startX = width/2 - selectorWidth; startY = height/2 - selectorHeight; break;
-            default: return false;
-        }
-        
-        return (mx >= startX && mx <= startX + selectorWidth &&
-                my >= startY && my <= startY + selectorHeight);
-    }
 }
+
+// DOMが読み込まれた後に実行
+document.addEventListener('DOMContentLoaded', function() {
+    // 最初はスタートボタンを非表示
+    document.getElementById('startButton').style.display = 'none';
+    
+    // スタートボタンのイベントリスナー
+    document.getElementById('startButton').addEventListener('click', async function() {
+        try {
+            // オーディオコンテキストの開始
+            await getAudioContext().resume();
+            
+            // 各音源の再生開始
+            for (const [name, sound] of Object.entries(soundFiles)) {
+                console.log(`Starting playback for ${name}`);
+                if (sound && sound.isLoaded()) {
+                    sound.loop();
+                    sound.setVolume(0);
+                } else {
+                    console.error(`Sound ${name} not loaded properly`);
+                }
+            }
+            
+            // スタートボタンを非表示
+            this.classList.add('hidden');
+            
+        } catch (error) {
+            console.error('Error starting audio:', error);
+        }
+    });
+});
 
 function mousePressed() {
     // 自動音量調整ボタンのクリック検出
@@ -390,8 +451,8 @@ function mousePressed() {
 
     // マウス座標を画面中心原点の座標系に変換
     const mx = mouseX - width/2;
-    const my = mouseY - height/2
-    // mousePressedの続き
+    const my = mouseY - height/2;
+
     // 音源セレクターのチェック
     for (const source of sources) {
         if (source.checkSoundSelection(mx, my)) {
